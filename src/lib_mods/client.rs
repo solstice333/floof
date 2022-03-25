@@ -9,11 +9,11 @@ mod tests {
     fn test_client_ser() {
         let mut wtr = csv::Writer::from_writer(io::stdout());
         wtr.serialize(Client {
-            client: 1,
-            available: 25.1234,
-            held: 5.,
-            total: 30.1234,
-            locked: false,
+            _client: 1,
+            _available: 25.1234,
+            _held: 5.,
+            _total: 30.1234,
+            _locked: false,
         })
         .unwrap();
     }
@@ -59,17 +59,16 @@ mod tests {
             3440.12,
             ulps = 1
         ));
-        client.hold(4000.);
-        assert!(float_cmp::approx_eq!(f64, client.available(), 0., ulps = 1));
-        client.unhold(0.123);
+        assert!(!client.hold(4000.));
+        assert!(float_cmp::approx_eq!(f64, client.available(), 3440.12, ulps = 1));
+        client.unhold(10.003);
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
-            0.123,
+            3450.123,
             ulps = 1
         ));
-        client.unhold(4000.);
-        println!("{:?}", client);
+        assert!(!client.unhold(4000.));
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
@@ -77,6 +76,28 @@ mod tests {
             ulps = 1
         ));
         client.lock();
+        client.add(100.);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.available(),
+            3450.123,
+            ulps = 1
+        ));
+        client.rm(100.);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.available(),
+            3450.123,
+            ulps = 1
+        ));
+        client.hold(100.);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.available(),
+            3450.123,
+            ulps = 1
+        ));
+        client.unhold(100.);
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
@@ -102,19 +123,30 @@ mod tests {
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
         client.hold(10.003);
         assert!(float_cmp::approx_eq!(f64, client.held(), 10.003, ulps = 1));
-        client.hold(4000.);
+        assert!(!client.hold(4000.));
         assert!(float_cmp::approx_eq!(
             f64,
             client.held(),
-            3450.123,
+            10.003,
             ulps = 1
         ));
-        client.unhold(0.123);
-        assert!(float_cmp::approx_eq!(f64, client.held(), 3450., ulps = 1));
-        client.unhold(4000.);
+        client.unhold(5.003);
+        assert!(float_cmp::approx_eq!(f64, client.held(), 5., ulps = 1));
+        assert!(!client.unhold(4000.));
+        assert!(client.unhold(5.));
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
         client.lock();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
+
+        client.add(10.0004);
+        assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
+        client.rm(10.0004);
+        assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
+        client.hold(10.003);
+        assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
+        client.unhold(0.123);
+        assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
+
         client.unlock();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
     }
@@ -149,7 +181,7 @@ mod tests {
             3450.123,
             ulps = 1
         ));
-        client.hold(4000.);
+        assert!(!client.hold(4000.));
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -163,7 +195,7 @@ mod tests {
             3450.123,
             ulps = 1
         ));
-        client.unhold(4000.);
+        assert!(!client.unhold(4000.));
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -177,6 +209,39 @@ mod tests {
             3450.123,
             ulps = 1
         ));
+
+        client.add(10.0004);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.total(),
+            3450.123,
+            ulps = 1
+        ));
+
+        client.rm(10.0004);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.total(),
+            3450.123,
+            ulps = 1
+        ));
+
+        client.hold(10.003);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.total(),
+            3450.123,
+            ulps = 1
+        ));
+
+        client.unhold(0.123);
+        assert!(float_cmp::approx_eq!(
+            f64,
+            client.total(),
+            3450.123,
+            ulps = 1
+        ));
+
         client.unlock();
         assert!(float_cmp::approx_eq!(
             f64,
@@ -199,78 +264,85 @@ mod tests {
 
 #[derive(Debug, Serialize)]
 pub struct Client {
-    client: u16,
-    available: f64,
-    held: f64,
-    total: f64,
-    locked: bool,
+    _client: u16,
+    _available: f64,
+    _held: f64,
+    _total: f64,
+    _locked: bool,
 }
 
 impl Client {
     pub fn new(id: u16, available: f64) -> Self {
         Self {
-            client: id,
-            available: available,
-            held: 0.,
-            total: available,
-            locked: false,
+            _client: id,
+            _available: available,
+            _held: 0.,
+            _total: available,
+            _locked: false,
         }
     }
 
     pub fn id(&self) -> u16 {
-        return self.client;
+        return self._client;
     }
 
     pub fn available(&self) -> f64 {
-        return self.available;
+        return self._available;
     }
 
     pub fn held(&self) -> f64 {
-        return self.held;
+        return self._held;
     }
 
     pub fn total(&self) -> f64 {
-        return self.total;
+        return self._total;
     }
 
-    pub fn add(&mut self, amt: f64) {
-        self.available += amt;
-        self.total += amt;
-    }
-
-    pub fn rm(&mut self, mut amt: f64) {
-        if amt > self.available {
-            amt = self.available;
-        };
-        self.total -= amt;
-        self.available -= amt;
-    }
-
-    pub fn hold(&mut self, mut amt: f64) {
-        if amt > self.available {
-            amt = self.available;
+    pub fn add(&mut self, amt: f64) -> bool {
+        if self.is_locked() {
+            return false;
         }
-        self.held += amt;
-        self.available -= amt;
+        self._available += amt;
+        self._total += amt;
+        return true;
     }
 
-    pub fn unhold(&mut self, mut amt: f64) {
-        if amt > self.held {
-            amt = self.held;
+    pub fn rm(&mut self, amt: f64) -> bool {
+        if self.is_locked() || amt > self.available() {
+            return false;
         }
-        self.held -= amt;
-        self.available += amt;
+        self._total -= amt;
+        self._available -= amt;
+        return true;
+    }
+
+    pub fn hold(&mut self, mut amt: f64) -> bool {
+        if self.is_locked() || amt > self._available {
+            return false;
+        }
+        self._held += amt;
+        self._available -= amt;
+        return true;
+    }
+
+    pub fn unhold(&mut self, mut amt: f64) -> bool {
+        if self.is_locked() || amt > self._held {
+            return false;
+        }
+        self._held -= amt;
+        self._available += amt;
+        return true;
     }
 
     pub fn lock(&mut self) {
-        self.locked = true;
+        self._locked = true;
     }
 
     pub fn unlock(&mut self) {
-        self.locked = false;
+        self._locked = false;
     }
 
     pub fn is_locked(&self) -> bool {
-        return self.locked;
+        return self._locked;
     }
 }

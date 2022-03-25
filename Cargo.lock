@@ -127,6 +127,7 @@ dependencies = [
  "csv",
  "env_logger",
  "float-cmp",
+ "log",
  "serde",
  "structopt",
  "thiserror",
