@@ -4,7 +4,7 @@ use std::{convert::TryFrom, result};
 #[cfg(test)]
 mod tests {
     use super::RawTransaction;
-    use crate::transaction::{Transaction, DisputeState};
+    use crate::transaction::Transaction;
     use float_cmp::approx_eq;
     use std::convert::TryFrom;
 
@@ -16,7 +16,7 @@ mod tests {
             assert_eq!(rtx.ty(), "deposit");
             assert_eq!(rtx.client, 1);
             assert_eq!(rtx.tx, 1);
-            assert!(approx_eq!(f64, rtx.amount, 1.1234, ulps = 1));
+            assert!(approx_eq!(f64, rtx.amount.unwrap(), 1.1234, ulps = 1));
         }
     }
 
@@ -26,7 +26,7 @@ mod tests {
             ty: String::from("deposit"),
             client: 1,
             tx: 1,
-            amount: 1.2345,
+            amount: Some(1.2345),
         };
         let rtx = Transaction::try_from(rtx).unwrap();
         match rtx {
@@ -34,10 +34,7 @@ mod tests {
                 assert_eq!(client, 1);
                 assert_eq!(tx, 1);
                 assert!(approx_eq!(f64, amount, 1.2345, ulps = 1));
-                match dispute {
-                    DisputeState::None => (),
-                    _ => panic!(),
-                }
+                assert!(!dispute);
             },
             _ => panic!("failed to be a deposit transaction")
         }
@@ -58,7 +55,7 @@ pub struct RawTransaction {
     ty: String,
     pub client: u16,
     pub tx: u32,
-    pub amount: f64,
+    pub amount: Option<f64>,
 }
 
 impl RawTransaction {
@@ -67,18 +64,10 @@ impl RawTransaction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum DisputeState {
-    None,
-    Dispute,
-    Resolve,
-    Chargeback,
-}
-
 #[derive(Debug)]
 pub enum Transaction {
-    Deposit { client: u16, tx: u32, amount: f64, dispute: DisputeState },
-    Withdrawal { client: u16, tx: u32, amount: f64, dispute: DisputeState },
+    Deposit { client: u16, tx: u32, amount: f64, dispute: bool },
+    Withdrawal { client: u16, tx: u32, amount: f64, dispute: bool },
     Dispute { client: u16, tx: u32 },
     Resolve { client: u16, tx: u32 },
     Chargeback { client: u16, tx: u32 },
@@ -92,15 +81,15 @@ impl TryFrom<RawTransaction> for Transaction {
             Ok(Transaction::Deposit {
                 client: rtx.client,
                 tx: rtx.tx,
-                amount: rtx.amount,
-                dispute: DisputeState::None,
+                amount: rtx.amount.expect("deposit tx bad format"),
+                dispute: false,
             })
         } else if rtx.ty() == "withdrawal" {
             Ok(Transaction::Withdrawal {
                 client: rtx.client,
                 tx: rtx.tx,
-                amount: rtx.amount,
-                dispute: DisputeState::None,
+                amount: rtx.amount.expect("withdrawal tx bad format"),
+                dispute: false,
             })
         } else if rtx.ty() == "dispute" {
             Ok(Transaction::Dispute {
