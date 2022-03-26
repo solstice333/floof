@@ -4,7 +4,7 @@ use std::{convert::TryFrom, result};
 #[cfg(test)]
 mod tests {
     use super::RawTransaction;
-    use crate::transaction::Transaction;
+    use crate::transaction::{Transaction, DisputeState};
     use float_cmp::approx_eq;
     use std::convert::TryFrom;
 
@@ -30,10 +30,14 @@ mod tests {
         };
         let rtx = Transaction::try_from(rtx).unwrap();
         match rtx {
-            Transaction::Deposit { client, tx, amount } => {
+            Transaction::Deposit { client, tx, amount, dispute } => {
                 assert_eq!(client, 1);
                 assert_eq!(tx, 1);
                 assert!(approx_eq!(f64, amount, 1.2345, ulps = 1));
+                match dispute {
+                    DisputeState::None => (),
+                    _ => panic!(),
+                }
             },
             _ => panic!("failed to be a deposit transaction")
         }
@@ -63,10 +67,18 @@ impl RawTransaction {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DisputeState {
+    None,
+    Dispute,
+    Resolve,
+    Chargeback,
+}
+
 #[derive(Debug)]
 pub enum Transaction {
-    Deposit { client: u16, tx: u32, amount: f64 },
-    Withdrawal { client: u16, tx: u32, amount: f64 },
+    Deposit { client: u16, tx: u32, amount: f64, dispute: DisputeState },
+    Withdrawal { client: u16, tx: u32, amount: f64, dispute: DisputeState },
     Dispute { client: u16, tx: u32 },
     Resolve { client: u16, tx: u32 },
     Chargeback { client: u16, tx: u32 },
@@ -81,12 +93,14 @@ impl TryFrom<RawTransaction> for Transaction {
                 client: rtx.client,
                 tx: rtx.tx,
                 amount: rtx.amount,
+                dispute: DisputeState::None,
             })
         } else if rtx.ty() == "withdrawal" {
             Ok(Transaction::Withdrawal {
                 client: rtx.client,
                 tx: rtx.tx,
                 amount: rtx.amount,
+                dispute: DisputeState::None,
             })
         } else if rtx.ty() == "dispute" {
             Ok(Transaction::Dispute {

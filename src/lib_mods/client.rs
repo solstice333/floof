@@ -1,8 +1,9 @@
+use std::result;
 use serde::Serialize;
 
 #[cfg(test)]
 mod tests {
-    use super::Client;
+    use super::{Client, Error};
     use std::io;
 
     #[test]
@@ -38,37 +39,49 @@ mod tests {
             3450.123,
             ulps = 1
         ));
-        client.add(10.0004);
+        client.add(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3460.1234,
             ulps = 1
         ));
-        client.rm(10.0004);
+        client.rm(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3450.123,
             ulps = 1
         ));
-        client.hold(10.003);
+        client.hold(10.003).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3440.12,
             ulps = 1
         ));
-        assert!(!client.hold(4000.));
+
+        let res = client.hold(4000.).unwrap_err();
+        match res {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expected Error::InsufficentFunds"),
+        }
+
         assert!(float_cmp::approx_eq!(f64, client.available(), 3440.12, ulps = 1));
-        client.unhold(10.003);
+        client.unhold(10.003).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3450.123,
             ulps = 1
         ));
-        assert!(!client.unhold(4000.));
+
+        let res = client.unhold(4000.).unwrap_err();
+        match res {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expected Error::InsufficentFunds"),
+        }
+
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
@@ -76,28 +89,28 @@ mod tests {
             ulps = 1
         ));
         client.lock();
-        client.add(100.);
+        assert!(client.add(100.).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3450.123,
             ulps = 1
         ));
-        client.rm(100.);
+        assert!(client.rm(100.).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3450.123,
             ulps = 1
         ));
-        client.hold(100.);
+        assert!(client.hold(100.).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
             3450.123,
             ulps = 1
         ));
-        client.unhold(100.);
+        assert!(client.unhold(100.).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.available(),
@@ -117,34 +130,46 @@ mod tests {
     fn test_client_held_add_rm_hold_unhold_lock_unlock() {
         let mut client = Client::new(1, 3450.123);
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.add(10.0004);
+        client.add(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.rm(10.0004);
+        client.rm(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.hold(10.003);
+        client.hold(10.003).unwrap();
         assert!(float_cmp::approx_eq!(f64, client.held(), 10.003, ulps = 1));
-        assert!(!client.hold(4000.));
+
+        let res = client.hold(4000.);
+        match res.unwrap_err() {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expecting Error::InsufficientFunds"),
+        }
+
         assert!(float_cmp::approx_eq!(
             f64,
             client.held(),
             10.003,
             ulps = 1
         ));
-        client.unhold(5.003);
+        client.unhold(5.003).unwrap();
         assert!(float_cmp::approx_eq!(f64, client.held(), 5., ulps = 1));
-        assert!(!client.unhold(4000.));
-        assert!(client.unhold(5.));
+
+        let res = client.unhold(4000.);
+        match res.unwrap_err() {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expecting Error::InsufficientFunds"),
+        }
+
+        client.unhold(5.).unwrap();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
         client.lock();
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
 
-        client.add(10.0004);
+        assert!(client.add(10.0004).is_err());
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.rm(10.0004);
+        assert!(client.rm(10.0004).is_err());
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.hold(10.003);
+        assert!(client.hold(10.003).is_err());
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
-        client.unhold(0.123);
+        assert!(client.unhold(0.123).is_err());
         assert!(float_cmp::approx_eq!(f64, client.held(), 0., ulps = 1));
 
         client.unlock();
@@ -160,42 +185,54 @@ mod tests {
             3450.123,
             ulps = 1
         ));
-        client.add(10.0004);
+        client.add(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
             3460.1234,
             ulps = 1
         ));
-        client.rm(10.0004);
+        client.rm(10.0004).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
             3450.123,
             ulps = 1
         ));
-        client.hold(10.003);
+        client.hold(10.003).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
             3450.123,
             ulps = 1
         ));
-        assert!(!client.hold(4000.));
+
+        let res = client.hold(4000.);
+        match res.unwrap_err() {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expecting Error::InsufficientFunds"),
+        }
+
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
             3450.123,
             ulps = 1
         ));
-        client.unhold(0.123);
+        client.unhold(0.123).unwrap();
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
             3450.123,
             ulps = 1
         ));
-        assert!(!client.unhold(4000.));
+
+        let res = client.unhold(4000.);
+        match res.unwrap_err() {
+            Error::InsufficientFunds(..) => (),
+            _ => panic!("expecting Error::InsufficientFunds"),
+        }
+
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -210,7 +247,7 @@ mod tests {
             ulps = 1
         ));
 
-        client.add(10.0004);
+        assert!(client.add(10.0004).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -218,7 +255,7 @@ mod tests {
             ulps = 1
         ));
 
-        client.rm(10.0004);
+        assert!(client.rm(10.0004).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -226,7 +263,7 @@ mod tests {
             ulps = 1
         ));
 
-        client.hold(10.003);
+        assert!(client.hold(10.003).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -234,7 +271,7 @@ mod tests {
             ulps = 1
         ));
 
-        client.unhold(0.123);
+        assert!(client.unhold(0.123).is_err());
         assert!(float_cmp::approx_eq!(
             f64,
             client.total(),
@@ -262,12 +299,28 @@ mod tests {
     }
 }
 
+pub type Result<T> = result::Result<T, Error>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("client {0} is locked")]
+    Locked(u16),
+
+    #[error("client {0} has insufficient funds of {1}")]
+    InsufficientFunds(u16, f64),
+}
+
 #[derive(Debug, Serialize)]
 pub struct Client {
+    #[serde(rename = "client")]
     _client: u16,
+    #[serde(rename = "available")]
     _available: f64,
+    #[serde(rename = "held")]
     _held: f64,
+    #[serde(rename = "total")]
     _total: f64,
+    #[serde(rename = "locked")]
     _locked: bool,
 }
 
@@ -298,40 +351,47 @@ impl Client {
         return self._total;
     }
 
-    pub fn add(&mut self, amt: f64) -> bool {
+    pub fn add(&mut self, amt: f64) -> Result<()> {
         if self.is_locked() {
-            return false;
+            return Err(Error::Locked(self.id()));
         }
         self._available += amt;
         self._total += amt;
-        return true;
+        Ok(())
     }
 
-    pub fn rm(&mut self, amt: f64) -> bool {
-        if self.is_locked() || amt > self.available() {
-            return false;
+    pub fn rm(&mut self, amt: f64) -> Result<()> {
+        if self.is_locked() {
+            return Err(Error::Locked(self.id()));
+        } else if amt > self.available() {
+            return Err(Error::InsufficientFunds(self.id(), self.available()));
         }
         self._total -= amt;
         self._available -= amt;
-        return true;
+        Ok(())
     }
 
-    pub fn hold(&mut self, mut amt: f64) -> bool {
-        if self.is_locked() || amt > self._available {
-            return false;
+    pub fn hold(&mut self, amt: f64) -> Result<()> {
+        if self.is_locked() {
+            return Err(Error::Locked(self.id()));
+        } else if amt > self.available() {
+            return Err(Error::InsufficientFunds(self.id(), self.available()));
         }
         self._held += amt;
         self._available -= amt;
-        return true;
+        Ok(())
     }
 
-    pub fn unhold(&mut self, mut amt: f64) -> bool {
-        if self.is_locked() || amt > self._held {
-            return false;
+    pub fn unhold(&mut self, amt: f64) -> Result<()> {
+        if self.is_locked() {
+            return Err(Error::Locked(self.id()));
+        } else if amt > self.held() {
+            return Err(Error::InsufficientFunds(self.id(), self.held()));
         }
+
         self._held -= amt;
         self._available += amt;
-        return true;
+        Ok(())
     }
 
     pub fn lock(&mut self) {
